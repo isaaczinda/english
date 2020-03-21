@@ -1,7 +1,7 @@
 import ParserBase
 import Data.Char
 
-import Data.Map (Map, empty, insert, lookup)
+import Data.Map (Map, lookup, empty, insert)
 
 
 (<=>) :: Parser a -> (a -> Bool) -> Parser a
@@ -94,7 +94,6 @@ data Expr =
 data Statement =
         VarDec String Expr |
         If Expr Statement |
-        While Expr Statement |
         Print Expr |
         NoOp
     deriving (Eq, Show)
@@ -127,7 +126,7 @@ program :: Parser [Statement]
 program = many (makeWs statement)
 
 statement :: Parser Statement
-statement = var_dec <|> do_nothing <|> print_ln <|> if_then <|> while
+statement = var_dec <|> do_nothing <|> print_ln <|> if_then
 
 float_ws :: Parser Expr
 float_ws = makeWs float
@@ -148,9 +147,6 @@ if_then :: Parser Statement
 if_then = (string_ws "if") <-+> expr <+-> (string_ws ",") <+> statement >>=:
     \(e,s) -> (If e s)
 
-while :: Parser Statement
-while = (string_ws "as long as") <-+> expr <+-> (string_ws ",") <+> statement >>=:
-    \(e,s) -> (While e s)
 
 -- matches whitespace, then an expresison with binary operators
 expr = makeWs ((add_expr <+-> (string_ws "is not zero")) <|> add_expr)
@@ -177,6 +173,7 @@ prim = var_expr <|> float_ws <|> expr
 type Env = Map String Float
 
 
+-- interpret (head (parse program "Let x equal 1.")) Data.Map.empty
 interpret :: Statement -> Env -> ([Float], Env)
 
 interpret NoOp env = ([], env)
@@ -192,14 +189,23 @@ interpret (If cond body) env =
 interpret (VarDec name expr) env =
     ([], (insert name (evalexpr expr env) env))
 
-interpret (While expr body) env =
-        if run_while then body_output ++ else ([], env)
-    where
-        run_while = (evalexpr expr env) /= 0
-        (body_output, env') = interpret body env
-        
-        (rest_output, rest_env) =
+interpret (Print expr) env = ([print_val], env)
+    where print_val = evalexpr expr env
+
 
 
 evalexpr :: Expr -> Env -> Float
-evalexpr = \x -> \x -> 0
+
+evalexpr (Literal num) env = num
+
+evalexpr (Var name) env =
+    case Data.Map.lookup name env of
+        Nothing -> error ("undefined variable: " ++ name)
+        Just x -> x
+
+
+
+evalexpr (Math expr1 Plus expr2) env  = (evalexpr expr1 env) + (evalexpr expr2 env)
+evalexpr (Math expr1 Minus expr2) env = (evalexpr expr1 env) - (evalexpr expr2 env)
+evalexpr (Math expr1 Times expr2) env = (evalexpr expr1 env) * (evalexpr expr2 env)
+evalexpr (Math expr1 Over expr2) env = (evalexpr expr1 env) / (evalexpr expr2 env)
