@@ -92,48 +92,53 @@ digits = digit <:> (many digit)
 alphanum = digit <|> letter
 
 
-ws = many ((char ' ') <|> (char '\t') <|> (char '\n'))
+ws = ws_char <+> (many ws_char)
+    where ws_char = ((char ' ') <|> (char '\t') <|> (char '\n'))
+
+-- constraint: no parser may match ws before or after chars matched
 
 -- make a parser into one which skips whitespace before running
 makeWs :: Parser a -> Parser a
-makeWs p = ws <-+> p <+-> ws
+makeWs p = ws <-+> p
 
+optionalWs :: Parser a -> Parser a
+optionalWs p = (optional ws) <-+> p
 
--- takes in 2 expressions, combines them into one expression using the op
-make_op_expr op = \e1 -> \e2 -> Math e1 op e2
-
--- these parsers all produce functions which take two expressions as inputs
--- and produce an expression with the binop as output
-times_op = (string_ws "times") >>=: \_ -> (make_op_expr Times)
-over_op = (string_ws "over") >>=: \_ -> (make_op_expr Over)
-plus_op = (string_ws "plus") >>=: \_ -> (make_op_expr Plus)
-minus_op = (string_ws "minus") >>=: \_ -> (make_op_expr Minus)
+--
+-- wsBefore :: Parser a -> Parser a
+-- wsBefore p = ws <-+> p
+--
+-- wsAfter :: Parser a -> Parser a
+-- wsAfter p = p <+-> ws
 
 
 var :: Parser String
-var = (makeWs (letter <:> (many alphanum)))
+var = (letter <:> (many alphanum))
 
 -- Parses a floting point literal
+-- no spaces allowed anywhere
 float :: Parser Literal
 float =
-        ((digits <++> (string ".") <++> digits) <|> digits) >>=
-        (\x -> (return (FloatLiteral (stringToFloat x))))
+        ((optional (char '-')) <+> ((digits <++> (string ".") <++> digits) <|> digits)) >>=:
+            \(s, x) ->
+                case s of
+                    (Just _) -> (FloatLiteral ((stringToFloat x) * (-1)))
+                    Nothing -> (FloatLiteral (stringToFloat x))
     where
         stringToFloat :: String -> Float
         stringToFloat = read
---
--- -- allow any amount of whitespace before / after a statement
--- program :: Parser [Statement]
--- program = many (makeWs statement)
---
--- statement :: Parser Statement
--- statement = var_dec <|> do_nothing <|> print_ln <|> if_then
 
+
+
+-- matches whitespace before, not after
 function :: Parser Literal
 function =
-    (strings_ws ["a", "function", "which", "takes"])
-    <-+> var <+-> (strings_ws ["and", "returns"]) <+> expr
-    <+> (optional where_statement) <+-> (strings_ws ["as", "it's", "result"])
+    ((string "a") <+> (strings_ws ["function", "which", "takes"]))
+    <-+> (makeWs var)
+    <+-> ((strings_ws ["and", "returns"]))
+    <+> (makeWs expr)
+    <+> (optional (optionalWs where_statement))
+    <+-> ((optionalWs (string "as")) <+> (strings_ws ["it's", "result"]))
         >>=: \((v, e), w) -> (FuncLiteral v e (maybe_to_list w))
 
     where
@@ -143,47 +148,58 @@ function =
                 (Just x) -> x
                 Nothing -> []
 
-where_statement :: Parser [VarDec]
-where_statement = (string_ws "where") <-+> (init_dec <|> (init_dec <++> intermediate_decs <++> final_dec))
-    where
-        init_dec = var_dec >>= \x -> return [x]
-        intermediate_decs = many (string_ws "," <-+> var_dec)
-        final_dec = ((strings_ws [",", "and"]) <-+> var_dec) >>= \x -> return [x]
+        where_statement :: Parser [VarDec]
+        where_statement =
+                (string "--") <+>
+                (optionalWs (string "where")) <-+>
+                ((init_dec <++> intermediate_decs <++> final_dec) <|> init_dec)
+                <+-> (optionalWs (string "--"))
+            where
+                init_dec = (makeWs var_dec) >>= \x -> return [x]
+                intermediate_decs = many (string "," <-+> (makeWs var_dec))
+                final_dec = ((string ",") <+> (string_ws "and") <-+> (makeWs var_dec)) >>= \x -> return [x]
 
+        var_dec :: Parser VarDec
+        var_dec = var <+-> (string_ws "equals") <+> (makeWs expr) >>=:
+            \(v,e) -> (VarDec v e)
 
+-- matches whitespace before
 literal :: Parser Literal
-literal = function <|> (makeWs float)
-
-var_dec :: Parser VarDec
-var_dec = var <+-> (string_ws "equals") <+> expr >>=:
-    \(v,e) -> (VarDec v e)
-
--- do_nothing :: Parser Statement
--- do_nothing = strings_ws ["do", "nothing", "."] >>=: \_ -> NoOp
---
--- print_ln :: Parser Statement
--- print_ln = (strings_ws ["print", "the", "value", "of"]) <-+> expr <+-> (string_ws ".") >>=:
---     \e -> (Print e)
+literal = function <|> float
 
 -- top-level expression
 expr = if_otherwise <|> apply_expr
 
 -- modify in order to allow more "otherwise" statements
 if_otherwise :: Parser Expr
-if_otherwise = apply_expr <+-> (string_ws "if") <+> apply_expr <+-> (strings_ws [",", "otherwise"]) <+> apply_expr
+if_otherwise =
+    apply_expr <+-> (string_ws "if") <+> (makeWs apply_expr)
+    <+-> (string ",") <+-> (string_ws "otherwise") <+> (makeWs apply_expr)
         >>=: \((t,c),f) -> (If c t f)
 
 -- matches any number of apply expressions
 apply_expr :: Parser Expr
 apply_expr = chainl1 add_expr apply_op
     where
+        -- matches <whitespace> applied to <whitespace>
         apply_op :: Parser (Expr -> Expr -> Expr)
-        apply_op = (strings_ws ["applied", "to"]) >>=: \_ -> Apply
+        apply_op = (strings_ws ["applied", "to"]) <+> ws >>=: \_ -> Apply
+
+
+-- takes in 2 expressions, combines them into one expression using the op
+make_op_expr op = \e1 -> \e2 -> Math e1 op e2
+
+-- these parsers all produce functions which take two expressions as inputs
+-- and produce an expression with the binop as output
+times_op = (string_ws "times") <+> ws >>=: \_ -> (make_op_expr Times)
+over_op = (string_ws "over") <+> ws >>=: \_ -> (make_op_expr Over)
+plus_op = (string_ws "plus") <+> ws >>=: \_ -> (make_op_expr Plus)
+minus_op = (string_ws "minus") <+> ws >>=: \_ -> (make_op_expr Minus)
 
 
 add_expr = chainl1 mult_expr (plus_op <|> minus_op)
 mult_expr = chainl1 prim (over_op <|> times_op)
-prim = var_expr <|> literal_expr <|> expr
+prim = literal_expr <|> var_expr <|> expr
     where
         var_expr = (var >>=: \v -> (Var v))
         literal_expr = literal >>=: \x -> (Literal x)
