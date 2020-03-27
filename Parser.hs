@@ -112,8 +112,25 @@ optionalWs p = (optional ws) <-+> p
 -- wsAfter p = p <+-> ws
 
 
+
+isNotReserved :: String -> Bool
+isNotReserved s = (not (elem s reserved))
+    where
+        reserved = [
+            -- funciton reserved words
+            "a", "function", "which", "takes", "and", "returns", "as", "it's",
+            "result", "where", "equals",
+            -- if reserved words
+            "if", "otherwise",
+            -- apply reserved words
+            "applied", "to",
+            -- binop reserved words
+            "times", "plus", "over", "minus"]
+
+
 var :: Parser String
-var = (letter <:> (many alphanum))
+var = (letter <:> (many alphanum)) <=> isNotReserved
+
 
 -- Parses a floting point literal
 -- no spaces allowed anywhere
@@ -170,7 +187,6 @@ literal = function <|> float
 -- top-level expression
 expr = if_otherwise <|> apply_expr
 
--- modify in order to allow more "otherwise" statements
 if_otherwise :: Parser Expr
 if_otherwise =
     apply_expr <+-> (string_ws "if") <+> (makeWs apply_expr)
