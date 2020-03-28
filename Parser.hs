@@ -104,14 +104,6 @@ makeWs p = ws <-+> p
 optionalWs :: Parser a -> Parser a
 optionalWs p = (optional ws) <-+> p
 
---
--- wsBefore :: Parser a -> Parser a
--- wsBefore p = ws <-+> p
---
--- wsAfter :: Parser a -> Parser a
--- wsAfter p = p <+-> ws
-
-
 
 isNotReserved :: String -> Bool
 isNotReserved s = (not (elem s reserved))
@@ -165,7 +157,7 @@ function =
                 (Just x) -> x
                 Nothing -> []
 
-        where_statement :: Parser [VarDec]
+        where_statement :: Parser [Assignment]
         where_statement =
                 (string "--") <+>
                 (optionalWs (string "where")) <-+>
@@ -176,31 +168,39 @@ function =
                 intermediate_decs = many (string "," <-+> (makeWs var_dec))
                 final_dec = ((string ",") <+> (string_ws "and") <-+> (makeWs var_dec)) >>= \x -> return [x]
 
-        var_dec :: Parser VarDec
-        var_dec = var <+-> (string_ws "equals") <+> (makeWs expr) >>=:
-            \(v,e) -> (VarDec v e)
+var_dec :: Parser Assignment
+var_dec = var <+-> (string_ws "equals") <+> (makeWs expr) >>=:
+    \(v,e) -> (Assignment v e)
 
 -- matches whitespace before
 literal :: Parser Literal
 literal = function <|> float
 
 -- top-level expression
-expr = if_otherwise <|> apply_expr
+expr :: Parser Expr
+expr = if_otherwise <|> add_expr
+
+program :: Parser [Statement]
+program = (optional ws) <-+> (statement <:> (many (makeWs statement))) <+-> (optional ws)
+    where
+        statement :: Parser Statement
+        statement = dec <|> println
+
+        dec :: Parser Statement
+        dec = (var_dec) <+-> (string ".")
+            >>=: \x -> (Assign x)
+
+        println :: Parser Statement
+        println =
+            (string "print" <+> strings_ws ["the", "value", "of"]) <-+> (makeWs expr) <+-> string "."
+                >>=: \e -> (Print e)
+
 
 if_otherwise :: Parser Expr
 if_otherwise =
-    apply_expr <+-> (string_ws "if") <+> (makeWs apply_expr)
-    <+-> (string ",") <+-> (string_ws "otherwise") <+> (makeWs apply_expr)
+    add_expr <+-> (string_ws "if") <+> (makeWs add_expr)
+    <+-> (string ",") <+-> (string_ws "otherwise") <+> (makeWs add_expr)
         >>=: \((t,c),f) -> (If c t f)
-
--- matches any number of apply expressions
-apply_expr :: Parser Expr
-apply_expr = chainl1 add_expr apply_op
-    where
-        -- matches <whitespace> applied to <whitespace>
-        apply_op :: Parser (Expr -> Expr -> Expr)
-        apply_op = (strings_ws ["applied", "to"]) <+> ws >>=: \_ -> Apply
-
 
 -- takes in 2 expressions, combines them into one expression using the op
 make_op_expr op = \e1 -> \e2 -> Math e1 op e2
@@ -211,11 +211,12 @@ times_op = (string_ws "times") <+> ws >>=: \_ -> (make_op_expr Times)
 over_op = (string_ws "over") <+> ws >>=: \_ -> (make_op_expr Over)
 plus_op = (string_ws "plus") <+> ws >>=: \_ -> (make_op_expr Plus)
 minus_op = (string_ws "minus") <+> ws >>=: \_ -> (make_op_expr Minus)
-
+apply_op = (strings_ws ["applied", "to"]) <+> ws >>=: \_ -> Apply
 
 add_expr = chainl1 mult_expr (plus_op <|> minus_op)
-mult_expr = chainl1 prim (over_op <|> times_op)
-prim = literal_expr <|> var_expr <|> expr
+mult_expr = chainl1 apply_expr (over_op <|> times_op)
+apply_expr = chainl1 prim apply_op
+prim = literal_expr <|> var_expr
     where
         var_expr = (var >>=: \v -> (Var v))
         literal_expr = literal >>=: \x -> (Literal x)

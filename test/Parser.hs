@@ -15,7 +15,7 @@ makeErrorTest testname parser input = do
             evaluate (parse parser input) `shouldThrow` anyException
 
 main = hspec $ do
-    describe "Parse literals" $ do
+    describe "Parse float" $ do
         -- literals
         it ("parses float without decimal") $
             (parse expr "1") `shouldBe` (lit 1)
@@ -26,20 +26,27 @@ main = hspec $ do
         it ("parses negative float") $
             (parse expr "-1") `shouldBe` (lit (-1))
 
+    describe "Parse function" $ do
         it ("parses a function") $
             (parse expr "a function which takes x and returns x as it's result") `shouldBe` Literal (FuncLiteral "x" (Var "x") [])
 
         it ("parses a function with a one-variable where statement") $
-            (parse expr "a function which takes x and returns x -- where x equals 1 -- as it's result") `shouldBe` Literal (FuncLiteral "x" (Var "x") [(VarDec "x" (lit 1))])
+            (parse expr "a function which takes x and returns x -- where x equals 1 -- as it's result") `shouldBe` Literal (FuncLiteral "x" (Var "x") [(Assignment "x" (lit 1))])
 
         it ("parses a function with a two-variable where statement") $
-            (parse expr "a function which takes x and returns x -- where x equals 1, and y equals 2 -- as it's result") `shouldBe` Literal (FuncLiteral "x" (Var "x") [(VarDec "x" (lit 1)), (VarDec "y" (lit 2))])
+            (parse expr "a function which takes x and returns x -- where x equals 1, and y equals 2 -- as it's result") `shouldBe` Literal (FuncLiteral "x" (Var "x") [(Assignment "x" (lit 1)), (Assignment "y" (lit 2))])
 
         it ("parses a function with a three-variable where statement") $
-            (parse expr "a function which takes x and returns x -- where x equals 1, z equals 0, and y equals 2 -- as it's result") `shouldBe` Literal (FuncLiteral "x" (Var "x") [(VarDec "x" (lit 1)), (VarDec "z" (lit 0)), (VarDec "y" (lit 2))])
+            (parse expr "a function which takes x and returns x -- where x equals 1, z equals 0, and y equals 2 -- as it's result") `shouldBe` Literal (FuncLiteral "x" (Var "x") [(Assignment "x" (lit 1)), (Assignment "z" (lit 0)), (Assignment "y" (lit 2))])
 
         it ("parses a function with a four-variable where statement") $
-            (parse expr "a function which takes x and returns x -- where x equals 1, z equals 0, p equals 0, and y equals 2 -- as it's result") `shouldBe` Literal (FuncLiteral "x" (Var "x") [(VarDec "x" (lit 1)), (VarDec "z" (lit 0)), (VarDec "p" (lit 0)), (VarDec "y" (lit 2))])
+            (parse expr "a function which takes x and returns x -- where x equals 1, z equals 0, p equals 0, and y equals 2 -- as it's result") `shouldBe` Literal (FuncLiteral "x" (Var "x") [(Assignment "x" (lit 1)), (Assignment "z" (lit 0)), (Assignment "p" (lit 0)), (Assignment "y" (lit 2))])
+
+        it ("spaces before and after a function's \"--\" are optional") $
+            (parse expr "a function which takes x and returns x--where x equals 1--as it's result") `shouldBe` Literal (FuncLiteral "x" (Var "x") [(Assignment "x" (lit 1))])
+
+        makeErrorTest "spaces before a function's \",\" are required" expr "a function which takes x and returns x -- where x equals 1 , and y equals 2 -- as it's result"
+
 
     describe "Parse variables" $ do
         it ("parses alpha variable") $
@@ -73,9 +80,32 @@ main = hspec $ do
         it ("parses if-otherwise statement") $
             (parse expr "1 if 1, otherwise 2") `shouldBe` (If (lit 1) (lit 1) (lit 2))
 
+        makeErrorTest "spaces before if-otherwise comma are prohibited" expr "1 if 1 , otherwise 2"
+
+        it ("parses application within an if statement") $
+            (parse expr "f applied to g if 1, otherwise 0") `shouldBe` (If (lit 1) (Apply (Var "f") (Var "g")) (lit 0))
+
+        makeErrorTest "fails to parse nested if-otherwise statements" expr "1 if 1, otherwise 1 if 1, otherwise 2"
+
     describe "Parse application" $ do
         it ("parses application") $
             (parse expr "f applied to 2") `shouldBe` (Apply (Var "f") (lit 2))
 
         it ("parses application in correct order") $
             (parse expr "f applied to g applied to 2") `shouldBe` (Apply (Apply (Var "f") (Var "g")) (lit 2))
+
+    describe "Parse program" $ do
+        it ("parses print statement.") $
+            (parse program "print the value of 1.") `shouldBe` [(Print (lit 1))]
+
+        it ("parses assign statement.") $
+            (parse program "x equals 1.") `shouldBe` [(Assign (Assignment "x" (lit 1)))]
+
+        it ("parses multiple statements.") $
+            (parse program "x equals 1. print the value of x.") `shouldBe` [(Assign (Assignment "x" (lit 1))), (Print (Var "x"))]
+
+        it ("allows spaces at end of program.") $
+            (parse program "print the value of 1. ") `shouldBe` [(Print (lit 1))]
+
+        it ("allows spaces at beginning of program.") $
+            (parse program "    \nprint the value of 1.") `shouldBe` [(Print (lit 1))]

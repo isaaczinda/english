@@ -6,10 +6,10 @@ data BinOp = Plus | Times | Minus | Over
 data Literal =
         FloatLiteral Float |
         -- [VarDec] declares variables used in where statement
-        FuncLiteral String Expr [VarDec]
+        FuncLiteral String Expr [Assignment]
     deriving (Eq, Show)
 
-data VarDec = VarDec String Expr
+data Assignment = Assignment String Expr
     deriving (Eq, Show)
 
 data Expr =
@@ -20,4 +20,9 @@ data Expr =
         -- condition, true, false
         If Expr Expr Expr |
         Apply Expr Expr
+    deriving (Eq, Show)
+
+data Statement =
+        Assign Assignment |
+        Print Expr
     deriving (Eq, Show)
