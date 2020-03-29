@@ -1,0 +1,31 @@
+bor equals a function which takes x and returns
+    a function which takes y and returns
+        x times x plus y times y.
+
+bsame equals a function which takes x and returns
+    a function which takes y and returns
+        0 if x minus y does not equal 0, otherwise 1.
+
+is0or1 equals a function which takes x
+    -- where
+        is0 equals bsame applied to 0 applied to x, and
+        is1 equals bsame applied to 1 applied to x
+    --
+    and returns bor applied to is0 applied to is1.
+
+fib equals a function which takes x
+    -- where
+        xminus1 equals x minus 1, and
+        xminus2 equals x minus 2
+    --
+    and returns
+        1 if is0or1 applied to x does not equal 0,
+        otherwise fib applied to xminus1 plus fib applied to xminus2.
+
+
+print the value of fib applied to 0.
+print the value of fib applied to 1.
+print the value of fib applied to 2.
+print the value of fib applied to 3.
+print the value of fib applied to 4.
+print the value of fib applied to 5.

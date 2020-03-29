@@ -144,11 +144,10 @@ function :: Parser Literal
 function =
     ((string "a") <+> (strings_ws ["function", "which", "takes"]))
     <-+> (makeWs var)
+    <+> (optional (makeWs where_statement))
     <+-> ((strings_ws ["and", "returns"]))
     <+> (makeWs expr)
-    <+> (optional (optionalWs where_statement))
-    <+-> ((optionalWs (string "as")) <+> (strings_ws ["it's", "result"]))
-        >>=: \((v, e), w) -> (FuncLiteral v e (maybe_to_list w))
+        >>=: \((v, w), e) -> (FuncLiteral v e (maybe_to_list w))
 
     where
         maybe_to_list :: Maybe [a] -> [a]
@@ -160,9 +159,9 @@ function =
         where_statement :: Parser [Assignment]
         where_statement =
                 (string "--") <+>
-                (optionalWs (string "where")) <-+>
+                (string_ws "where") <-+>
                 ((init_dec <++> intermediate_decs <++> final_dec) <|> init_dec)
-                <+-> (optionalWs (string "--"))
+                <+-> (string_ws "--")
             where
                 init_dec = (makeWs var_dec) >>= \x -> return [x]
                 intermediate_decs = many (string "," <-+> (makeWs var_dec))
@@ -199,6 +198,7 @@ program = (optional ws) <-+> (statement <:> (many (makeWs statement))) <+-> (opt
 if_otherwise :: Parser Expr
 if_otherwise =
     add_expr <+-> (string_ws "if") <+> (makeWs add_expr)
+    <+-> (strings_ws ["does not equal 0"]) 
     <+-> (string ",") <+-> (string_ws "otherwise") <+> (makeWs add_expr)
         >>=: \((t,c),f) -> (If c t f)
 
