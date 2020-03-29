@@ -1,5 +1,6 @@
  - stop coyping the entire environment for closures -- only copy func free variables
  - add "could not make closure" thing
+ - make sure that 
 
 NOTES
 

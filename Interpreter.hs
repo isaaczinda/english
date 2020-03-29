@@ -23,6 +23,34 @@ unpackFloat value |  (Number float) <- value = float
                   |  otherwise               = error "expected float."
 
 
+-- adds an assignment to an environment
+addAssignment :: Assignment -> Env -> Env
+
+addAssignment (Assignment name expr@(Literal f@(FuncLiteral _ _ _))) env = env''
+    where
+        -- insert a dummy variable into the environment
+        dummyvar = Number 0
+        env' = insert name dummyvar env
+
+        -- interpret the function, which creates a closure
+        -- the "root" closure
+        closure@(Closure cfunc cenv) = interpexpr expr env'
+
+        insertRec :: String -> Value -> Value
+        insertRec name closure@(Closure f env) = (Closure f env')
+            where
+                -- the properly modified closure which has
+                closure' = insertRec name closure
+                env' = insert name closure' env
+
+        env'' = insert name (insertRec name closure) env
+
+
+addAssignment (Assignment name expr) env = env'
+    where
+        exprval = interpexpr expr env
+        env' = insert name exprval env
+
 apply :: Value -> Value -> Value
 apply (Closure (FuncLiteral param body defs) env) arg =
         interpexpr body env''
@@ -30,11 +58,7 @@ apply (Closure (FuncLiteral param body defs) env) arg =
         -- add the value of the argument to the environment
         env' = (insert param arg env)
         -- add the defs (where assignments) to the environment
-        env'' = foldl addWhere env' defs
-
-        -- function to fold where assignment
-        addWhere env (Assignment name expr) = (insert name val env)
-            where val = interpexpr expr env
+        env'' = foldl (flip addAssignment) env' defs
 
 apply (Number _) _ = error "could not treat float like function."
 
@@ -56,10 +80,9 @@ interpret statements = outputs
         (_, outputs) = foldl combine start statements
 
 interpstat :: Statement -> Env -> (Env, [Value])
-interpstat (Assign (Assignment name expr)) env = (env', [])
-    where
-        val = interpexpr expr env
-        env' =  insert name val env
+
+interpstat (Assign assignment) env = (env', [])
+    where env' =  addAssignment assignment env
 
 interpstat (Print expr) env = (env, [val])
     where val = interpexpr expr env
