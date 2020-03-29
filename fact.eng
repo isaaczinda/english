@@ -1,9 +1,9 @@
-fact equals a function which takes x and returns
-x times restfact if x does not equal 0, otherwise 1
--- where
-    nextx equals x minus 1, and
-    restfact equals fact applied to nextx
---
-as it's result.
+fact equals a function which takes x
+    -- where
+        nextx equals x minus 1, and
+        restfact equals fact applied to nextx
+    --
+    and returns
+    x times restfact if x does not equal 0, otherwise 1.
 
 print the value of fact applied to 4.
