@@ -1,9 +1,11 @@
 module Interpreter where
 
+
 import Parser
 import ParserBase
 import AST
 import Data.Map (Map, lookup, empty, insert)
+
 
 -- start with a dynamic typechecking interpreter
 
@@ -13,14 +15,6 @@ data Value =
         Closure Literal Env |
         Number Float
     deriving (Show, Eq)
-
-
-
-
-
-
--- interpexpr : interprets an expression
--- interpstat : interprets a statement
 
 -- unpack a float from a literal, throwing an error if unpack fails
 -- use "pattern guards" because we're very fancy
