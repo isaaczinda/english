@@ -20,4 +20,4 @@ Run `./english test.eng` to run the *english* interpreter on the file test.eng. 
  * *english* is dynamically typed.
  * order of operations: function application, multiplication / division, addition / subtraction
 
-*english* does not allow the use of parenthesis or any operator like this. However, a similar effect can be achieved by using where statements. The function `\x -> (1+x)*3` can be written `a function which takes x -- where i = 1 plus x -- and returns i times 3.`
+*english* does not allow the use of parenthesis or any operator like this. However, a similar effect can be achieved by using where statements. The function `\x -> (1+x)*3` can be written `a function which takes x -- where i equals 1 plus x -- and returns i times 3.`
